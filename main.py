@@ -59,7 +59,8 @@ def get_horizontal_coords():
     return coord_list
 
 
-PLAY_METAL_PIPE = True
+
+
 def arm_stabilise(stop_stabilisitation):
     alphax0 = 0
     alphay0 = circle(0,15,60,alphax0)[0]
@@ -75,8 +76,6 @@ def arm_stabilise(stop_stabilisitation):
         if last != pitch: print(f"Pitch: {pitch}")
 
         if pitch not in degree_seq: continue
-
-        if (abs(dog.read_roll()) > 60 or abs(pitch) > 60) and PLAY_METAL_PIPE: edu.xgoSpeaker("../../pi/Desktop/metal_pipe.mp3")
 
         dog.arm(*degree_seq[pitch])
         last = pitch
@@ -95,21 +94,6 @@ stabilise.start()
 
 
 
-# stabilise.join()
-
-# exit()
-
-# alphax0 = 25
-# alphay0 = circle(0,15,60,alphax0)[0]
-# degree_seq = sequence(alphax0, alphay0, 100, -60, 60, 1,-21)
-# RUN = True
-# for i in degree_seq:
-#     x, y = degree_seq[i]
-#     dog.arm(x, y)
-#     print(f"degree {i} Arm @ x = {x}, y = {y}")
-#     time.sleep(0.1)
-# exit()
-
 
     
 
@@ -120,19 +104,12 @@ dog.imu(0)
 
 
 
-# dog.claw(0)
-# time.sleep(1)
-# dog.claw(255)
 
 
 stabilise.join()
 exit()
-
+##############
 dog.move("x", 10)
-
-
-
-
 
 
 
@@ -143,9 +120,4 @@ time.sleep(5)
 stop_stabilisitation.set()
 print(f"done")
 
-
-#for i in range(-95,155):
-#    dog.arm(30,i)
-#    print(f"X: {i} @ iter {i+95}")
-#    time.sleep(0.1)
 

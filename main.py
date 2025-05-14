@@ -1,99 +1,123 @@
-import random
-ranks = {"A": 11,
-         "Q": 10,
-         "K": 10,
-         "J": 9}
+from xgolib import XGO
+from xgoedu import XGOEDU
 
-ranks.update({str(i): i for i in range(2,11)})
 
-last_id = -1
-players_global = []
 
-class Player():
-    def __init__(self, name):
-        global last_id
-        self.name = name
-        self.id, last_id = last_id + 1, last_id + 1
-        self.cards = []
-        players_global.append(self)
+dog = XGO(port='/dev/ttyAMA0',version="xgolite")
+version=dog.read_firmware()
+if version[0]=='M':
+    print('XGO-MINI')
+    dog = XGO(port='/dev/ttyAMA0',version="xgomini")
+    dog_type='M'
+else:
+    print('XGO-LITE')
+    dog_type='L'
 
-dealer = Player("Dealer")
 
-class Game():
-    def __init__(self, player_list: list = players_global):
-        self.deck = self.new_deck()
-        self.players = player_list
-        #self.dealer = Player("Dealer")
+edu = XGOEDU()
 
-    @staticmethod
-    def new_deck():
-        deck = list(ranks.keys()) * 4
-        random.shuffle(deck)
-        return deck
+dog.load_allmotor()
+dog.reset()
+
+
+
+
+
+
+import time
+import math
+import threading
+
+def circle(x0, y0, r, x):
+    to_root = r**2 - (x - x0)**2
+
+    if to_root < 0:
+        return False
     
-    def hit(self, player, amount):
-        given = []
-        for i in range(amount):
-            given.append(self.deck.pop(0))
-            player.cards.append(given[-1])
-        return given
+    return (y0 + math.sqrt(to_root), y0 - math.sqrt(to_root))
+
+
+def sequence(x0, y0, r, min, max, step, degoffset = -27):
+    degdict = {} # degree dictionary
+    i = min-1
+
+    while (i < max) and ((i := i + step) or True):
+        if i > -30 and i < -15: r -= 0.12  #### eliptic stabilization 
+        if i > -15 and i < 15: r -= 0.34
+        if i > 15 and i < 33: r -= 0.3
+        angle = math.radians(i)
+        degdict[i+degoffset] = [x0+r*math.cos(angle), y0+r*math.sin(angle)]
+
+    return degdict
+
+
+def get_horizontal_coords():
+    coord_list = []
+    for x in range(-60, 60):
+        y = circle(0,15,60,x)[0]
+        coord_list.append([x+80, y+32])
+    return coord_list
+
+
+
+
+def arm_stabilise(stop_stabilisitation):
+    alphax0 = 0
+    alphay0 = circle(0,15,60,alphax0)[0]
+
+    degoffset = round(-21 - (alphax0/8.5))
+    degree_seq = sequence(alphax0, alphay0, 100, -60, 60, 1, degoffset)
+
+    last = 0
+    while not stop_stabilisitation.is_set():
+        pitch = dog.read_pitch()
+        pitch = round(pitch)
+
+        if last != pitch: print(f"Pitch: {pitch}")
+
+        if pitch not in degree_seq: continue
+
+        dog.arm(*degree_seq[pitch])
+        last = pitch
+        # print(pitch)
     
-    @staticmethod
-    def eval_cards(player):
-        s = 0
-        hand = {i: 0 for i in ranks}
-        for card in player.cards:
-            hand[card] = hand[card] + 1
-            s += ranks[card]
-        if s <= 21:
-            return s
-        while hand["A"] > 1:
-            s-=10
-            hand["A"] = hand["A"] - 1
-        return s
-   
-    def print_cards(self, reveal: bool = False):
-        for i in self.players:
-            if i.id != 0 or reveal:
-                print(f"{i.name}: {i.cards} - Value: {self.eval_cards(i)}")
-            else:
-                print(f"{i.name}: {i.cards[0]}")
+    print("Stabilisation stopped")
 
 
-    def start(self):
-        for i in range(2):
-            for player in self.players:
-                self.hit(player,1)
-        self.print_cards(False)
-        self.interact_loop()
 
+stop_stabilisitation = threading.Event()
+stabilise = threading.Thread(target=arm_stabilise, args=(stop_stabilisitation,))
 
-    def interact_loop(self):
-        while True:
-            player = self.players[1]
-            inp = input("h/s: ")
-            if inp == "h":
-                given = self.hit(player,1)
-                print(player.cards)
-            elif inp == "s":
-                break
-        self.print_cards(True)
-        
-        
+stabilise.start()
 
 
 
 
 
 
-p1 = Player("Adam")
-game = Game()
-game.start()
-
-game.print_cards()
+    
 
 
-print(game.eval_cards(p1))
 
+dog.arm_mode(1)
+dog.imu(0)
+
+
+
+
+
+stabilise.join()
+exit()
+##############
+dog.move("x", 10)
+
+
+
+time.sleep(6)
+dog.stop()
+
+time.sleep(5)
+stop_stabilisitation.set()
+print(f"done")
 
 

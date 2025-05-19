@@ -81,6 +81,7 @@ def test():
 
 
 def keyboard_control():
+    global msg
     walk_mode = keyboard.add_hotkey("m", lambda: exec('msg["walk_mode"] = False if msg["walk_mode"] else True'))
 
     add_speed = keyboard.add_hotkey("up", lambda: exec('msg["walkspeed"] += 1'))

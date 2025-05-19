@@ -92,10 +92,10 @@ def keyboard_control():
 
 
         keypress = keyboard.is_pressed("w")
-        msg["w"] = True if keyboard.is_pressed("w") else False
-        msg["a"] = True if keyboard.is_pressed("a") else False
-        msg["s"] = True if keyboard.is_pressed("s") else False
-        msg["d"] = True if keyboard.is_pressed("d") else False
+        msg["w"] = keyboard.is_pressed("w")
+        msg["a"] = keyboard.is_pressed("a")
+        msg["s"] = keyboard.is_pressed("s")
+        msg["d"] = keyboard.is_pressed("d")
 
         time.sleep(0.1)
 

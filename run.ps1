@@ -1,8 +1,14 @@
 # Set variables
 $piUser = "pi"
-$piHost = "192.168.216.251"
-$remotePath = "/home/pi/Desktop/uploaded_script.py"
-$localPath = "C:\Users\janwi\Desktop\robot\main.py"
+$piHost = "192.168.192.251"
+$remotePath = "/home/pi/Desktop/server.py"
+$localPath = ".\server.py"
+
+Write-Output "IP: $piHost
+user: $piUser
+host: $piHost
+remotePath: $remotePath
+localpath: $localPath"
 
 # Copy file to Raspberry Pi
 scp $localPath "$piUser@${piHost}:$remotePath"

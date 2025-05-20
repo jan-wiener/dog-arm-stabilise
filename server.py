@@ -1,9 +1,13 @@
 from xgolib import XGO
 from xgoedu import XGOEDU
+import os
 
+try:
+    dog = XGO(port='/dev/ttyAMA0',version="xgolite")
+except Exception as e:
+    print(f"{e}\n Shutting down (fixing), restart manually please")
+    os.system(f"pkill -f {__file__}") ## linux
 
-
-dog = XGO(port='/dev/ttyAMA0',version="xgolite")
 version=dog.read_firmware()
 if version[0]=='M':
     print('XGO-MINI')
@@ -96,6 +100,8 @@ stabilise.start()
 import socket
 import json
 
+
+
 HOST = '0.0.0.0'  # Listen on all interfaces
 PORT = 12345      # Choose any free port
 
@@ -136,18 +142,33 @@ def action(msg):
                 dog.move("y", 0)
 
     elif msg["input_type"] == 1:
-        y = msg["x"] / 42  ## x and y are swapped with micro:bit and robot
-        x = msg["y"] / 59
+        y = 0
+        x = msg["y"] / 59 ## x and y are swapped with micro:bit and robot
 
+        x = 0 if abs(x) < 5 else int(-x * 1.5) # flip + multiplier
+        
+        if not msg["walk_mode"]:
+            y = msg["x"] / 42  ## x and y are swapped with micro:bit and robot
+            y = 0 if abs(y) < 4 else int(-y) # flip
+            dog.move("y", y)
+            dog.turn(0)
+        else:
+            turn = msg["x"] / 7
+            if x > 0:
+                turn = -turn # flip
+            else:
+                turn = 0 if abs(turn) < 10 else -turn # flip
 
-        x = 0 if abs(x) < 5 else int(-x * 1.5) 
-        y = 0 if abs(y) < 4 else int(-y)
+            dog.move("y", 0)
+            dog.turn(turn)
+            
 
         
         
         print(f"x {x}; y {y}")
+
         dog.move("x", x)
-        dog.move("y", y)
+            
 
 
 
@@ -157,7 +178,7 @@ def action(msg):
 
 
 
-def tcp_server():
+def tcp_server(server_stop):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((HOST, PORT))
         s.listen(1)
@@ -181,29 +202,26 @@ def tcp_server():
                 print(f"Exception {e}; reconnecting in 2s")
                 time.sleep(2)
 
-def udp_server():
+def udp_server(server_stop):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        
         s.bind((HOST, PORT))
 
+
         print(f"UDP Listening on {HOST}:{PORT}")
-        while True:
+        while not server_stop.is_set():
             data, addr = s.recvfrom(1024)
             if data:
                 msg = json.loads(data.decode())
                 action(msg)
                 print(f"Received: {data.decode().strip()}")
+        s.close()
 
 
 
-
-server = threading.Thread(target=udp_server)
+server_stop = threading.Event()
+server = threading.Thread(target=udp_server, args=(server_stop,))
 server.start()
-
-
-
-
-
-
 
 
 
@@ -214,7 +232,15 @@ server.join()
 
 
 
-stop_stabilisitation.set()
-print(f"done")
+# try:
+#     server.join()
+# except Exception as e:
+#     print(f"{e}; \n shutting down")
+#     server_stop.set()
+#     stop_stabilisitation.set()
+
+
+
+
 
 

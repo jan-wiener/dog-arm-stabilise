@@ -44,13 +44,16 @@ def circle(x0, y0, r, x):
 def sequence(x0, y0, r, min, max, step, degoffset = -27):
     degdict = {} # degree dictionary
     i = min-1
+    deg_dynamic = 0
 
     while (i < max) and ((i := i + step) or True):
         if i > -30 and i < -15: r -= 0.12  #### eliptic stabilization 
         if i > -15 and i < 15: r -= 0.34
         if i > 15 and i < 33: r -= 0.3
+        if i > 33 and i < 65: deg_dynamic -= 0.5
+
         angle = math.radians(i)
-        degdict[i+degoffset] = [x0+r*math.cos(angle), y0+r*math.sin(angle)]
+        degdict[i+degoffset+int(deg_dynamic)] = [x0+r*math.cos(angle), y0+r*math.sin(angle)]
 
     return degdict
 
@@ -65,21 +68,40 @@ def get_horizontal_coords():
 
 
 
-def arm_stabilise(stop_stabilisitation):
-    alphax0 = 0
-    alphay0 = circle(0,15,60,alphax0)[0]
+def arm_stabilise(stop_stabilisitation, dynamic = False):
+    if dynamic:
+        print("calculating")
+        degree_seq = {}
+        for alphax0 in range(-59,50):
+            alphay0 = circle(0,15,60,alphax0)[0]
+            degoffset = round(-21 - (alphax0/8.5))
+            deg_temp = sequence(alphax0, alphay0, 100, -120, 120, 1, degoffset)
 
-    degoffset = round(-21 - (alphax0/8.5))
-    degree_seq = sequence(alphax0, alphay0, 100, -60, 60, 1, degoffset)
+            acc_range = [i for i in range(-alphax0-40, int(-alphax0+(0.5*abs(alphax0))))]
+            for k, v in deg_temp.items():
+                if k in acc_range:
+                    degree_seq[k] = v
+        print("done")
+    else:
+        alphax0 = 0
+        alphay0 = circle(0,15,60,alphax0)[0]
+
+        degoffset = round(-21 - (alphax0/8.5))
+        degree_seq = sequence(alphax0, alphay0, 100, -80, 120, 1, degoffset)
+
+
+
 
     last = 0
     while not stop_stabilisitation.is_set():
         pitch = dog.read_pitch()
         pitch = round(pitch)
 
-        #if last != pitch: print(f"Pitch: {pitch}")
+        if last != pitch: print(f"Pitch: {pitch}")
 
         if pitch not in degree_seq: continue
+        if last != pitch: print(f"/")
+        
 
         dog.arm(*degree_seq[pitch])
         last = pitch

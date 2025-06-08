@@ -49,11 +49,17 @@ def sequence(x0, y0, r, min, max, step, degoffset = -27):
     while (i < max) and ((i := i + step) or True):
         if i > -30 and i < -15: r -= 0.12  #### eliptic stabilization 
         if i > -15 and i < 15: r -= 0.34
-        if i > 15 and i < 33: r -= 0.3
-        if i > 33 and i < 65: deg_dynamic -= 0.5
+        if i > 15 and i < 37: r -= 0.3
+
+        if i > 35 and i < 65: deg_dynamic -= 0.37
+        if i > 75 and i < 95: deg_dynamic -= 0.2
+        if i+degoffset+int(deg_dynamic) > 80: deg_dynamic += 0.4
+
 
         angle = math.radians(i)
         degdict[i+degoffset+int(deg_dynamic)] = [x0+r*math.cos(angle), y0+r*math.sin(angle)]
+        
+    degdict = {i: v for i, v in degdict.items() if i > -87}
 
     return degdict
 
@@ -68,14 +74,15 @@ def get_horizontal_coords():
 
 
 
-def arm_stabilise(stop_stabilisitation, dynamic = False):
+def arm_stabilise(stop_stabilisitation, dynamic = True, offset = 0):
     if dynamic:
         print("calculating")
         degree_seq = {}
         for alphax0 in range(-59,50):
             alphay0 = circle(0,15,60,alphax0)[0]
             degoffset = round(-21 - (alphax0/8.5))
-            deg_temp = sequence(alphax0, alphay0, 100, -120, 120, 1, degoffset)
+            print(alphax0, degoffset)
+            deg_temp = sequence(alphax0, alphay0, 100, -120, 150, 1, degoffset)
 
             acc_range = [i for i in range(-alphax0-40, int(-alphax0+(0.5*abs(alphax0))))]
             for k, v in deg_temp.items():
@@ -90,6 +97,9 @@ def arm_stabilise(stop_stabilisitation, dynamic = False):
         degree_seq = sequence(alphax0, alphay0, 100, -80, 120, 1, degoffset)
 
 
+    if offset:
+        degree_seq = {i+offset: v for i, v in degree_seq.items()}
+
 
 
     last = 0
@@ -97,7 +107,7 @@ def arm_stabilise(stop_stabilisitation, dynamic = False):
         pitch = dog.read_pitch()
         pitch = round(pitch)
 
-        if last != pitch: print(f"Pitch: {pitch}")
+        if last != pitch: print(f"Pitch: {pitch}, {degree_seq.get(pitch, 0)}")
 
         if pitch not in degree_seq: continue
         if last != pitch: print(f"/")
@@ -112,12 +122,14 @@ def arm_stabilise(stop_stabilisitation, dynamic = False):
 
 
 stop_stabilisitation = threading.Event()
-stabilise = threading.Thread(target=arm_stabilise, args=(stop_stabilisitation,))
+stabilise = threading.Thread(target=arm_stabilise, args=(stop_stabilisitation, True, -12,))
 
 stabilise.start()
 
+# dog.arm(80,106)
 
 
+dog.claw(100)
 
 import socket
 import json

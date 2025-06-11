@@ -8,6 +8,9 @@ import serial
 
 
 class Client():
+    """
+    Transfers data thourgh TCP or UDP protocol to the robot
+    Includes keyboard and microbit input parsing tools"""
 
     def __init__(self, input_type:str = "keyboard", HOST: str = '192.168.192.251', PORT: int = 12345, autostart:bool = False, type_autostart:str = "UDP", mbport:str = "COM4"):
         """

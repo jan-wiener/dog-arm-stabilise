@@ -33,8 +33,17 @@ import math
 import threading
 
 class Stabilization():
+    """
+    Stabilises the robot's arm. Uses math to find the ideal coordinates to send to the robot using xgolib.XGO.arm()"""
 
-    def __init__(self, autorun = False, dynamic = False, offset = 0):
+    def __init__(self, autorun: bool = False, dynamic: bool = False, offset: int = 0):
+        """Initialise
+
+        Args:
+            autorun (bool, optional): Sets whether stabilisation should automatically start. Defaults to False.
+            dynamic (bool, optional): Sets style of stabilisation. Defaults to False.
+            offset (int, optional): Adds offset (in degrees) to the stabilisation useful when holding objects. Defaults to 0.
+        """
         self.stop_stabilisitation = threading.Event()
         self.thread = None
 
@@ -43,15 +52,22 @@ class Stabilization():
 
 
     def start(self, dynamic = False, offset = 0):
+        """Starts the stabilisation (thread)
+
+        Args:
+            dynamic (bool, optional): Sets style of stabilisation. Defaults to False.
+            offset (int, optional): Adds offset (in degrees) to the stabilisation useful when holding objects. Defaults to 0.
+        """
         if self.thread: return
 
         final_args = (self.stop_stabilisitation, dynamic, offset)
         self.thread = threading.Thread(target=self.arm_stabilise, args=final_args)
         self.thread.start()
-        return self.thread
     
 
     def stop(self):
+        """Stops the stabilisation thread
+        """
         if not self.thread: return
 
         self.stop_stabilisitation.set()
@@ -61,7 +77,18 @@ class Stabilization():
 
 
     @staticmethod
-    def circle(x0, y0, r, x):
+    def circle(x0: float, y0: float, r: float, x: float) -> tuple:
+        """Returns 2 value of y when you supply location(x0 and y0) of a circle, radius(r) and x(x) to plug into the function
+
+        Args:
+            x0 (float): location x
+            y0 (float): location y
+            r (float): radius
+            x (float): x for the function
+
+        Returns:
+            tuple: Two values of y
+        """
         to_root = r**2 - (x - x0)**2
 
         if to_root < 0:
@@ -70,7 +97,24 @@ class Stabilization():
         return (y0 + math.sqrt(to_root), y0 - math.sqrt(to_root))
 
     @staticmethod
-    def sequence(x0, y0, r, min, max, step, degoffset = -27):
+    def sequence(x0: float, y0: float, r: float, min: float, max: float, step: float, degoffset: int = -27) -> dict:
+        """Math sequence, similar to geogebra's 'Sequence', changed for my use case. 
+
+        Supply info about a circle, angle and step, which sets how far the points should be from each other
+
+        Args:
+            x0 (float): location x of circle 
+            y0 (float): location y of circle 
+            r (float): radius of circle 
+            min (float): part of angle
+            max (float): part of angle
+            step (int): distance between points
+            degoffset (int, optional): offset to retunred dict. Defaults to -27.
+
+        Returns:
+            dict: data
+        """
+
         degdict = {} # degree dictionary
         i = min-1
         deg_dynamic = 0
@@ -93,17 +137,17 @@ class Stabilization():
         return degdict
     
     
-    def get_horizontal_coords(self):
-        coord_list = []
-        for x in range(-60, 60):
-            y = self.circle(0,15,60,x)[0]
-            coord_list.append([x+80, y+32])
-        return coord_list
-    
     
     
     
     def arm_stabilise(self, stop_stabilisitation, dynamic = True, offset = 0):
+        """Main worker of stabilisation
+
+        Args:
+            stop_stabilisitation (_type_): _description_
+            dynamic (bool, optional): Sets style of stabilisation. Defaults to True.
+            offset (int, optional): Adds offset (in degrees) to the stabilisation useful when holding objects. Defaults to 0.
+        """
         if dynamic:
             print("calculating")
             degree_seq = {}
@@ -168,25 +212,47 @@ import socket
 import json
 
 class Server():
-    def __init__(self, HOST = '0.0.0.0', PORT = 12345, autostart = False, type_autostart = "UDP"):
+    """Listen for info on TCP or UDP and perform actions based on it.
+    """
+
+    def __init__(self, HOST: str = '0.0.0.0', PORT:str = 12345, autostart:bool = False, type_autostart:str = "UDP"):
+        """Initialise
+
+        Args:
+            HOST (str, optional): Host IP. Defaults to '0.0.0.0'.
+            PORT (int, optional): Set the PORT. Defaults to 12345.
+            autostart (bool, optional): Whether to start upon init. Defaults to False.
+            type_autostart (str, optional): [only when autostart is set to True] Type of server to use. Defaults to "UDP".
+        """
         self.HOST = HOST 
         self.PORT = PORT
         self.s = None
 
 
-        self.server_stop = threading.Event()
+        self.server_stop = None
         self.server = None
 
         if autostart:
             self.start(type_autostart)
     
-    def start(self, type="UDP"):
+
+    def start(self, type:str="UDP"):
+        """Start the server thread
+
+        Args:
+            type (str, optional): Set server type. Defaults to "UDP".
+
+        Raises:
+            BaseException: Wrong server type
+        """
         if self.server: return 
 
+        self.server_stop = None
+
         if type == "UDP":
-            self.server = threading.Thread(target=self.udp_server, args=(self.server_stop,))
+            self.server = threading.Thread(target=self.udp_server)
         elif type == "TCP":
-            self.server = threading.Thread(target=self.tcp_server, args=(self.server_stop,))
+            self.server = threading.Thread(target=self.tcp_server)
         else:
             raise BaseException("Only accepts 'UDP' or 'TCP'")
         
@@ -194,27 +260,38 @@ class Server():
 
     
     def stop(self):
+        """Stops the server thread
+
+        Raises:
+            e: Shutdown error other than errno. 107 and errno. 9
+        """
         if not self.server or not self.s: return
 
         try:
             self.s.shutdown(socket.SHUT_RDWR) # s = socket connection 
         except OSError as e:
-            if e.errno == 107:
+            if e.errno == 107 or e.errno == 9:
                 pass
             else:
                 raise e
             
         self.s.close()
-        self.server_stop.set()
+        self.server_stop = True
         self.server.join()
         self.server = None
-        self.server_stop.clear()
+        self.server_stop = None
         
 
 
 
     @staticmethod
-    def action(msg):
+    def action(msg:dict):
+        """Performs actions based on supplied message
+
+        Args:
+            msg (dict): Actions to perform
+        """
+
         global dog
 
         if msg["input_type"] == 0:
@@ -277,17 +354,19 @@ class Server():
             dog.move("x", x)        
     
     
-    def tcp_server(self, server_stop):
+    def tcp_server(self):
+        """TCP server, possibly not working
+        """
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((self.HOST, self.PORT))
             s.listen(1)
             print(f"Listening on {self.HOST}:{self.PORT}")
-            while True:
+            while not self.server_stop:
                 try:
                     conn, addr = s.accept()
                     with conn:
                         print(f"Connected by {addr}")
-                        while True:
+                        while not self.server_stop:
                             data = conn.recv(1024)
                             if not data:
                                 continue
@@ -301,14 +380,16 @@ class Server():
                     print(f"Exception {e}; reconnecting in 2s")
                     time.sleep(2)
     
-    def udp_server(self, server_stop):
+    def udp_server(self):
+        """UDP server/listener
+        """
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as self.s:
             
             self.s.bind((self.HOST, self.PORT))
     
     
             print(f"UDP Listening on {self.HOST}:{self.PORT}")
-            while not server_stop.is_set():
+            while not self.server_stop:
                 data, addr = self.s.recvfrom(1024)
                 if data:
                     msg = json.loads(data.decode())
@@ -330,7 +411,7 @@ stab.stop()
 server.stop()
 
 
-time.sleep(3)
+time.sleep(6)
 stab.start()
 server.start()
 

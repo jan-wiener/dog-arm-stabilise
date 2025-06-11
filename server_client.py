@@ -1,147 +1,222 @@
-# tcp_client.py
 import socket
 import time
 import keyboard
 import threading
 import json
 import sys
+import serial
 
 
-HOST = '192.168.192.251'
-PORT = 12345
+class Client():
+
+    def __init__(self, input_type:str = "keyboard", HOST: str = '192.168.192.251', PORT: int = 12345, autostart:bool = False, type_autostart:str = "UDP", mbport:str = "COM4"):
+        """
+        init\n
+        :param input_type: Set input type. Accepts 'keyboard' or 'microbit'
+        :param mbport: *[only if autostart is allowed]* Select the serial port with your micro:bit connected 
+        :param HOST: Set the robot's IP adress to try and connect to
+        :param PORT: Set the robot's port
+        :param autostart: Set whether to start input listening and broadcasting upon calling __init__
+        :param type_autostart: *[only if autostart is allowed]* Sets the communaction method, accepts 'UDP' and 'TCP'
+        """
+        self.HOST = HOST
+        self.PORT = PORT
+        self.stop_signal = None
+        self.msg = {}
+        self.broadcaster_thread = None
+
+        self.input_stop_signal = None
+        self.input_process_thread = None
+
+        self.current_input_type = input_type
+
+        if autostart:
+            self.start(type=type_autostart, )
 
 
-INPUT_TYPE = 0
+    
+    def set_input_type(self, input_type: str, mbport:str = "COM4"):
+        """
+        Sets input type\n
+        :param input_type: Set input type. Accepts 'keyboard' or 'microbit'
+        :param mbport: Select the serial port with your micro:bit connected
+        """
+        if input_type == self.current_input_type and self.input_process_thread: return
 
-print(f"HOST: {HOST}\nPORT: {PORT}\n INPUT_TYPE: {INPUT_TYPE}")
-
-
-if INPUT_TYPE == 0:
-    msg = {
-        "input_type": 0, # 0 = keyboard, 1 = micro:bit
-        "w": False,
-        "a": False,
-        "s": False,
-        "d": False,
-        "walk_mode": False,
-        "walkspeed": 15,
-        "turnspeed": 70,
-    }
-else:
-    msg = {
-        "input_type": 1, # 0 = keyboard, 1 = micro:bit
-        "x": 0,
-        "y": 0,
-        "walk_mode": True,
-    }
+        if self.input_process_thread:
+            self.input_stop_signal = True
+            self.input_process_thread.join()
+        
+        self.input_stop_signal = None
+        self.input_process_thread = None
 
 
+        if not input_type: return
+
+
+        if input_type == "keyboard":
+            self.msg = {
+                "input_type": 0, # 0 = keyboard, 1 = micro:bit
+                "w": False,
+                "a": False,
+                "s": False,
+                "d": False,
+                "walk_mode": False,
+                "walkspeed": 15,
+                "turnspeed": 70,
+            }
+            self.input_process_thread = threading.Thread(target=self.keyboard_control)
+        elif input_type == "microbit":
+            self.msg = {
+                "input_type": 1, # 0 = keyboard, 1 = micro:bit
+                "x": 0,
+                "y": 0,
+                "walk_mode": True,
+            }
+            self.input_process_thread = threading.Thread(target=self.microbit_control, args=(mbport,))
+        
+        self.current_input_type = input_type
+        self.input_process_thread.start()
+
+
+    def start(self, type:str ="UDP"):
+        """
+        Starts input and broadcast threads\n
+        :param type: Sets the communaction method, accepts 'UDP' and 'TCP'
+        """
+        if self.broadcaster_thread: return
+
+        self.set_input_type(self.current_input_type)
+
+        self.stop_signal = False
+        if type=="UDP":
+            self.broadcaster_thread = threading.Thread(target=self.connect_udp)
+        elif type== "TCP":
+            self.broadcaster_thread = threading.Thread(target=self.connect_tcp) # DEPRECATED
+        self.broadcaster_thread.start()
+
+    def stop(self):
+        """Stops input and broadcast threads"""
+        if not self.broadcaster_thread: return
+
+
+        self.stop_signal = True
+        self.broadcaster_thread.join()
+        self.broadcaster_thread = None
+        self.set_input_type(None)
 
 
 
-def connect_tcp(stop_event):
-    global msg
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        while not stop_event.is_set():
-            try:
-                try: s.connect((HOST, PORT))
-                except: pass
-                while not stop_event.is_set():
+    def connect_tcp(self):
+        """
+        Attempts to create a tcp connection with self.HOST:self.PORT and starts sending self.msg"""
 
-                    s.sendall(json.dumps(msg).encode())
-                    time.sleep(0.1)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            while not self.stop_signal:
+                try:
+                    try: 
+                        s.connect((self.HOST, self.PORT))
+                    except: 
+                        pass
 
-            except Exception as e:
-                #s.close()
-                print(f"Exception: {e}; restaring in 2s")
-                time.sleep(2)
-        s.close()
+                    while not self.stop_signal:
+                        s.sendall(json.dumps(self.msg).encode())
+                        time.sleep(0.1)
 
-            #data = s.recv(1024)
-    #print('Received from Pi:', data.decode().strip())
+                except Exception as e:
+                    #s.close()
+                    print(f"Exception: {e}; restaring in 2s")
+                    time.sleep(2)
+            s.close()
 
-def connect_udp(stop_event):
-    global msg
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        print(f"Transfer started")
-        while not stop_event.is_set():
-            s.sendto(json.dumps(msg).encode(), (HOST, PORT))
+
+    def connect_udp(self):
+        """
+        Starts broadcasting self.msg to self.HOST:self.PORT"""
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            print(f"Transfer started")
+            while not self.stop_signal:
+                s.sendto(json.dumps(self.msg).encode(), (self.HOST, self.PORT))
+                time.sleep(0.1)
+
+
+
+    
+
+
+
+    def keyboard_control(self):
+        """
+        Detects keypressed to parse them into self.msg.
+        """
+        keylist = {}
+
+        keylist["m"] = keyboard.add_hotkey("m", lambda self=self: exec('self.msg["walk_mode"] = False if self.msg["walk_mode"] else True'))
+
+        keylist["up"] = keyboard.add_hotkey("up", lambda self=self: exec('self.msg["walkspeed"] += 1'))
+        keylist["down"] = keyboard.add_hotkey("down", lambda self=self: exec('self.msg["walkspeed"] -= 1'))
+
+        keylist["right"] = keyboard.add_hotkey("right", lambda self=self: exec('self.msg["turnspeed"] += 10'))
+        keylist["left"] = keyboard.add_hotkey("left", lambda self=self: exec('self.msg["turnspeed"] -= 10'))
+
+
+        while not self.input_stop_signal:
+
+
+            keypress = keyboard.is_pressed("w")
+            self.msg["w"] = keyboard.is_pressed("w")
+            self.msg["a"] = keyboard.is_pressed("a")
+            self.msg["s"] = keyboard.is_pressed("s")
+            self.msg["d"] = keyboard.is_pressed("d")
+
             time.sleep(0.1)
-        #data, _ = s.recvfrom(1024)
+
+        for keyobj in keylist.values():
+            keyboard.remove_hotkey(keyobj)
 
 
-stop_event = threading.Event()
-connect_thread = threading.Thread(target=connect_udp, args=(stop_event,))
-connect_thread.start()
+    def microbit_control(self, port:str = "COM4"): # pip install pyserial
+        """
+        binds the microbit serial output to self.msg\n
+        :param port: Select the serial port with your micro:bit connected
+        """
+
+        
+
+        baudrate = 115200
+        ser = serial.Serial(port, baudrate)
+        print(f"Connected to {port}")
 
 
+        try:
+            while not self.input_stop_signal:
+                mb_dict = ser.readline().decode("utf-8", errors="replace").strip()
+                mb_dict = json.loads(mb_dict)
+                print(mb_dict)
 
-#############################test
-def test():
-    global msg
-    while True:
-        print(msg)
-        time.sleep(1)
+                self.msg.update(mb_dict)
 
-#test_thread = threading.Thread(target=test)
-#test_thread.start()
-########################################
-
-
-
-def keyboard_control():
-    global msg
-    walk_mode = keyboard.add_hotkey("m", lambda: exec('msg["walk_mode"] = False if msg["walk_mode"] else True'))
-
-    add_speed = keyboard.add_hotkey("up", lambda: exec('msg["walkspeed"] += 1'))
-    remove_speed = keyboard.add_hotkey("down", lambda: exec('msg["walkspeed"] -= 1'))
-
-    add_turn = keyboard.add_hotkey("right", lambda: exec('msg["turnspeed"] += 10'))
-    remove_turn = keyboard.add_hotkey("left", lambda: exec('msg["turnspeed"] -= 10'))
-    while True:
-
-
-        keypress = keyboard.is_pressed("w")
-        msg["w"] = keyboard.is_pressed("w")
-        msg["a"] = keyboard.is_pressed("a")
-        msg["s"] = keyboard.is_pressed("s")
-        msg["d"] = keyboard.is_pressed("d")
-
-        time.sleep(0.1)
-
-
-def microbit_control(port = "COM4"): # pip install pyserial
-    global msg
-    import serial
-
-    baudrate = 115200
-    ser = serial.Serial(port, baudrate)
-    print(f"Connected to {port}")
-
-
-    try:
-        while True:
-            mb_dict = ser.readline().decode("utf-8", errors="replace").strip()
-            mb_dict = json.loads(mb_dict)
-            print(mb_dict)
-
-            msg.update(mb_dict)
-
-            print(msg)
-            #mb_dict = json.loads(mb_dict)
+                print(self.msg)
 
 
 
-    except KeyboardInterrupt:
-        ser.close()
-        print("Connection closed.")
-        stop_event.set()
+
+        except KeyboardInterrupt:
+            ser.close()
+            print("Connection closed.")
+            self.stop()
 
 
-if INPUT_TYPE == 0:
-    keyboard_control()
-elif INPUT_TYPE == 1:
-    microbit_control()
+
+client = Client(autostart=True)
+
+
+while True:
+    time.sleep(10)
+
+
+
 
 
 

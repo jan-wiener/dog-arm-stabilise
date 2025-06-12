@@ -198,15 +198,7 @@ class Stabilization():
 # stabilise = threading.Thread(target=arm_stabilise, args=(stop_stabilisitation, True, -12,))
 # stabilise.start()
 
-stab = Stabilization(autorun=False, )
-stab.start()
 
-
-
-# dog.arm(80,106)
-
-
-dog.claw(100)
 
 import socket
 import json
@@ -403,27 +395,19 @@ class Server():
 # server = threading.Thread(target=udp_server, args=(server_stop,))
 # server.start()
 
-server = Server()
-server.start()
 
-time.sleep(6)
-stab.stop()
-server.stop()
+if __name__ == "__main__":
+    stab = Stabilization(autorun=False, )
+    stab.start()
 
+    dog.claw(100)
 
-time.sleep(6)
-stab.start()
-server.start()
+    server = Server()
+    server.start()
 
 
-
-
-
-
-
-
-while True:
-    time.sleep(1)
+    while True:
+        time.sleep(1)
 
 
 # try:

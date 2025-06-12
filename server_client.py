@@ -12,7 +12,7 @@ class Client():
     Transfers data thourgh TCP or UDP protocol to the robot
     Includes keyboard and microbit input parsing tools"""
 
-    def __init__(self, input_type:str = "keyboard", HOST: str = '192.168.192.251', PORT: int = 12345, autostart:bool = False, type_autostart:str = "UDP", mbport:str = "COM4", add_switch_hotkey: bool = True):
+    def __init__(self, input_type:str = "keyboard", HOST: str = '192.168.192.251', PORT: int = 12345, autostart:bool = False, type_autostart:str = "UDP", mbport:str = "COM4", add_switch_hotkey: bool = False):
         """
         init\n
         :param input_type: Set input type. Accepts 'keyboard' or 'microbit'
@@ -232,14 +232,12 @@ class Client():
 
 
 
-client = Client(autostart=True, input_type="keyboard")
+if __name__ == "__main__":
+    client = Client(autostart=True, input_type="keyboard", add_switch_hotkey=True)
 
+    while True:
+        time.sleep(1)
 
-# b = keyboard.add_hotkey("b", lambda client=client: client.set_input_type("keyboard" if client.current_input_type == "microbit" else "microbit"))
-
-
-while True:
-    time.sleep(1)
 
 
 

@@ -36,14 +36,16 @@ class Stabilization():
     """
     Stabilises the robot's arm. Uses math to find the ideal coordinates to send to the robot using xgolib.XGO.arm()"""
 
-    def __init__(self, autorun: bool = False, dynamic: bool = False, offset: int = 0):
+    def __init__(self, autorun: bool = False, dynamic: bool = False, offset: int = 0, logging: bool = False):
         """Initialise
 
         Args:
             autorun (bool, optional): Sets whether stabilisation should automatically start. Defaults to False.
-            dynamic (bool, optional): Sets style of stabilisation. Defaults to False.
-            offset (int, optional): Adds offset (in degrees) to the stabilisation useful when holding objects. Defaults to 0.
+            dynamic (bool, optional): [only when autorun] Sets style of stabilisation. Defaults to False.
+            offset (int, optional): [only when autorun] Adds offset (in degrees) to the stabilisation useful when holding objects. Defaults to 0.
+            logging (bool, optional): Sets whether specific information should be printed out. Defaults to False
         """
+        self.logging = logging
         self.stop_stabilisitation = False
         self.thread = None
 
@@ -61,7 +63,7 @@ class Stabilization():
         if self.thread: return
         self.stop_stabilisitation = False
 
-        final_args = (self.stop_stabilisitation, dynamic, offset)
+        final_args = (dynamic, offset)
         self.thread = threading.Thread(target=self.arm_stabilise, args=final_args)
         self.thread.start()
     
@@ -92,8 +94,6 @@ class Stabilization():
         """
         to_root = r**2 - (x - x0)**2
 
-        if to_root < 0:
-            return False
 
         return (y0 + math.sqrt(to_root), y0 - math.sqrt(to_root))
 
@@ -181,10 +181,11 @@ class Stabilization():
             pitch = dog.read_pitch()
             pitch = round(pitch)
     
-            if last != pitch: print(f"Pitch: {pitch}, {degree_seq.get(pitch, 0)}")
+            if self.logging and last != pitch: print(f"Pitch: {pitch}, {degree_seq.get(pitch, 0)}")
+
     
             if pitch not in degree_seq: continue
-            if last != pitch: print(f"/")
+            if self.logging and last != pitch: print(f"/")
             
     
             dog.arm(*degree_seq[pitch])
@@ -208,7 +209,7 @@ class Server():
     """Listen for info on TCP or UDP and perform actions based on it.
     """
 
-    def __init__(self, HOST: str = '0.0.0.0', PORT:str = 12345, autostart:bool = False, type_autostart:str = "UDP"):
+    def __init__(self, HOST: str = '0.0.0.0', PORT:str = 12345, autostart:bool = False, type_autostart:str = "UDP", logging:bool = False):
         """Initialise
 
         Args:
@@ -216,11 +217,13 @@ class Server():
             PORT (int, optional): Set the PORT. Defaults to 12345.
             autostart (bool, optional): Whether to start upon init. Defaults to False.
             type_autostart (str, optional): [only when autostart is set to True] Type of server to use. Defaults to "UDP".
+            logging (bool, optional): Sets whether specific information should be printed out. Defaults to False.
         """
         self.HOST = HOST 
         self.PORT = PORT
         self.s = None
-
+        
+        self.logging = logging
 
         self.server_stop = None
         self.server = None
@@ -277,8 +280,8 @@ class Server():
 
 
 
-    @staticmethod
-    def action(msg:dict):
+
+    def action(self, msg:dict):
         """Performs actions based on supplied message
 
         Args:
@@ -342,7 +345,7 @@ class Server():
     
             
             
-            print(f"x {x}; y {y}")
+            if self.logging: print(f"x {x}; y {y}")
     
             dog.move("x", x)        
     
@@ -365,7 +368,7 @@ class Server():
                                 continue
                             msg = json.loads(data.decode())
                             self.action(msg)
-                            print(f"Received: {data.decode().strip()}")
+                            if self.logging: print(f"Received: {data.decode().strip()}")
     
                             #conn.sendall(b"ACK\n")
     
@@ -381,13 +384,13 @@ class Server():
             self.s.bind((self.HOST, self.PORT))
     
     
-            print(f"UDP Listening on {self.HOST}:{self.PORT}")
+            if self.logging: print(f"UDP Listening on {self.HOST}:{self.PORT}")
             while not self.server_stop:
                 data, addr = self.s.recvfrom(1024)
                 if data:
                     msg = json.loads(data.decode())
                     self.action(msg)
-                    print(f"Received: {data.decode().strip()}")
+                    if self.logging: print(f"Received: {data.decode().strip()}")
             self.s.close()
 
 
@@ -398,12 +401,12 @@ class Server():
 
 
 if __name__ == "__main__":
-    stab = Stabilization(autorun=False, )
+    stab = Stabilization(autorun=False, logging=True)
     stab.start()
 
     dog.claw(100)
 
-    server = Server()
+    server = Server(logging=True)
     server.start()
 
 

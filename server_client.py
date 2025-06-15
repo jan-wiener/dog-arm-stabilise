@@ -12,7 +12,7 @@ class Client():
     Transfers data thourgh TCP or UDP protocol to the robot
     Includes keyboard and microbit input parsing tools"""
 
-    def __init__(self, input_type:str = "keyboard", HOST: str = '192.168.192.251', PORT: int = 12345, autostart:bool = False, type_autostart:str = "UDP", mbport:str = "COM4", add_switch_hotkey: bool = False):
+    def __init__(self, input_type:str = "keyboard", HOST: str = '192.168.192.251', PORT: int = 12345, autostart:bool = False, type_autostart:str = "UDP", mbport:str = "COM4", add_switch_hotkey: bool = False, logging:bool = False):
         """
         init\n
         :param input_type: Set input type. Accepts 'keyboard' or 'microbit'
@@ -22,6 +22,7 @@ class Client():
         :param autostart: Set whether to start input listening and broadcasting upon calling __init__
         :param type_autostart: *[only if autostart is allowed]* Sets the communaction method, accepts 'UDP' and 'TCP'
         :param add_switch_hotkey: Sets whether there should be a switch key between microbit and keyboard. Bound to letter B. Defaults to True.
+        :param logging: Sets whether specific information should be printed out.
         """
         self.mbport = mbport
         self.HOST = HOST
@@ -29,6 +30,8 @@ class Client():
         self.stop_signal = None
         self.msg = {}
         self.broadcaster_thread = None
+
+        self.logging = logging
 
         self.input_stop_signal = None
         self.input_process_thread = None
@@ -84,9 +87,12 @@ class Client():
                 "walk_mode": True,
             }
             self.input_process_thread = threading.Thread(target=self.microbit_control)
+    
         
         self.current_input_type = input_type
         self.input_process_thread.start()
+
+        if self.logging: print(f"\nInput type set to {input_type}\n---")
 
 
     def start(self, type:str ="UDP"):
@@ -149,7 +155,8 @@ class Client():
         Starts broadcasting self.msg to self.HOST:self.PORT"""
 
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            print(f"Transfer started")
+            if self.logging: print(f"Transfer started")
+           
             while not self.stop_signal:
                 s.sendto(json.dumps(self.msg).encode(), (self.HOST, self.PORT))
                 time.sleep(0.1)
@@ -198,8 +205,16 @@ class Client():
         
 
         baudrate = 115200
-        ser = serial.Serial(self.mbport, baudrate)
-        print(f"Connected to {self.mbport}")
+        try:
+            ser = serial.Serial(self.mbport, baudrate)
+        except Exception as e:
+            print(e)
+            print(f"\nSwitching to keyboard\n---")
+            self.input_process_thread = None
+            self.set_input_type("keyboard")
+            return
+        
+        if self.logging: print(f"Connected to {self.mbport}")
 
 
         try:
@@ -216,13 +231,9 @@ class Client():
                     continue
 
 
-                print(mb_dict)
-
                 self.msg.update(mb_dict)
 
-                print(self.msg)
-
-
+                if self.logging: print(self.msg)
 
 
         except KeyboardInterrupt:
@@ -233,7 +244,7 @@ class Client():
 
 
 if __name__ == "__main__":
-    client = Client(autostart=True, input_type="keyboard", add_switch_hotkey=True)
+    client = Client(autostart=True, input_type="keyboard", add_switch_hotkey=True, logging=True)
 
     while True:
         time.sleep(1)

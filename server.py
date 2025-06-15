@@ -44,7 +44,7 @@ class Stabilization():
             dynamic (bool, optional): Sets style of stabilisation. Defaults to False.
             offset (int, optional): Adds offset (in degrees) to the stabilisation useful when holding objects. Defaults to 0.
         """
-        self.stop_stabilisitation = threading.Event()
+        self.stop_stabilisitation = False
         self.thread = None
 
         if autorun:
@@ -59,6 +59,7 @@ class Stabilization():
             offset (int, optional): Adds offset (in degrees) to the stabilisation useful when holding objects. Defaults to 0.
         """
         if self.thread: return
+        self.stop_stabilisitation = False
 
         final_args = (self.stop_stabilisitation, dynamic, offset)
         self.thread = threading.Thread(target=self.arm_stabilise, args=final_args)
@@ -70,10 +71,10 @@ class Stabilization():
         """
         if not self.thread: return
 
-        self.stop_stabilisitation.set()
+        self.stop_stabilisitation = True
         self.thread.join()
         self.thread = None
-        self.stop_stabilisitation.clear()
+        self.stop_stabilisitation = False
 
 
     @staticmethod
@@ -119,7 +120,8 @@ class Stabilization():
         i = min-1
         deg_dynamic = 0
     
-        while (i < max) and ((i := i + step) or True):
+        while (i < max):
+            i += step
             if i > -30 and i < -15: r -= 0.12  #### eliptic stabilization 
             if i > -15 and i < 15: r -= 0.34
             if i > 15 and i < 37: r -= 0.3
@@ -140,11 +142,10 @@ class Stabilization():
     
     
     
-    def arm_stabilise(self, stop_stabilisitation, dynamic = True, offset = 0):
+    def arm_stabilise(self, dynamic = True, offset = 0):
         """Main worker of stabilisation
 
         Args:
-            stop_stabilisitation (_type_): _description_
             dynamic (bool, optional): Sets style of stabilisation. Defaults to True.
             offset (int, optional): Adds offset (in degrees) to the stabilisation useful when holding objects. Defaults to 0.
         """
@@ -176,7 +177,7 @@ class Stabilization():
     
     
         last = 0
-        while not stop_stabilisitation.is_set():
+        while not self.stop_stabilisitation:
             pitch = dog.read_pitch()
             pitch = round(pitch)
     

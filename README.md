@@ -26,10 +26,17 @@ The client server_client.py can then be ran by running:
 ```powershell
 py .\server_client.py
 ```
+You can import this file to other python scripts, as seen in the examples folder.
+
 
 You can control the robot with keyboard or micro:bit.
 
 If you wish to use a micro:bit, you'll need to flash your micro:bit with my code. https://github.com/jan-wiener/serial-transfer-robot-ts/
 
+
+If you want to quit the server process, the fastest way to do that is to kill all python processes via ssh. This will also kill the python processes controlling the robot's screen and default button actions. 
+```bash
+sudo pkill python
+```
 
 
